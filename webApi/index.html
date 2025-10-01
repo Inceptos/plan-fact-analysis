@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>План-факт отчет</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .filters {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .filter-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        select, input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        select[multiple] {
+            height: 100px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .charts {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .chart-container {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>План-факт отчет</h1>
+    
+    <div class="filters">
+        <div class="filter-group">
+            <label>Объекты (мультивыбор):</label>
+            <select id="objects" multiple>
+                <option value="">Загрузка...</option>
+            </select>
+        </div>
+        
+        <div class="filter-group">
+            <label>Типы работ (мультивыбор):</label>
+            <select id="workTypes" multiple>
+                <option value="">Загрузка...</option>
+            </select>
+        </div>
+        
+        <div class="filter-group">
+            <label>Тип периода:</label>
+            <select id="dateType">
+                <option value="YYYY">По годам</option>
+                <option value="YYYY-MM" selected>По месяцам</option>
+            </select>
+        </div>
+        
+        <div class="filter-group">
+            <label>Стартовая дата:</label>
+            <input type="date" id="startDate">
+        </div>
+        
+        <div class="filter-group">
+            <label>Конечная дата:</label>
+            <input type="date" id="endDate">
+        </div>
+        
+        <button onclick="loadReport()">Сгенерировать отчет</button>
+    </div>
+
+    <div id="loading" class="loading">
+        Загрузка данных...
+    </div>
+
+    <div class="charts">
+        <div class="chart-container">
+            <h3>Накопительный итог</h3>
+            <canvas id="cumulativeChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>Сгруппированный результат</h3>
+            <canvas id="regularChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000';
+        let cumulativeChart = null;
+        let regularChart = null;
+
+        // Загрузка данных для комбобоксов при старте
+        document.addEventListener('DOMContentLoaded', function() {
+            loadComboboxData();
+            setDefaultDates();
+        });
+
+        // Установка дат по умолчанию (3 года назад - +1 год)
+        function setDefaultDates() {
+            const today = new Date();
+            const startDate = new Date();
+            startDate.setFullYear(today.getFullYear() - 3);
+            
+            const endDate = new Date();
+            endDate.setFullYear(today.getFullYear() + 1);
+
+            document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
+            document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+        }
+
+        // Загрузка данных для комбобоксов
+        async function loadComboboxData() {
+            try {
+                // Загрузка объектов
+                const objectsResponse = await fetch(`${API_BASE}/api/objects`);
+                const objects = await objectsResponse.json();
+                
+                const objectsSelect = document.getElementById('objects');
+                objectsSelect.innerHTML = '';
+                objects.forEach(obj => {
+                    const option = document.createElement('option');
+                    option.value = obj.value;
+                    option.textContent = obj.label;
+                    objectsSelect.appendChild(option);
+                });
+
+                // Загрузка типов работ
+                const workTypesResponse = await fetch(`${API_BASE}/api/work-types`);
+                const workTypes = await workTypesResponse.json();
+                
+                const workTypesSelect = document.getElementById('workTypes');
+                workTypesSelect.innerHTML = '';
+                workTypes.forEach(wt => {
+                    const option = document.createElement('option');
+                    option.value = wt.value;
+                    option.textContent = wt.label;
+                    workTypesSelect.appendChild(option);
+                });
+
+            } catch (error) {
+                console.error('Ошибка загрузки данных:', error);
+                alert('Ошибка загрузки данных для фильтров');
+            }
+        }
+
+        // Загрузка отчета
+        async function loadReport() {
+            const loading = document.getElementById('loading');
+            loading.style.display = 'block';
+
+            try {
+                const params = new URLSearchParams();
+                
+                // Получаем выбранные значения
+                const startDate = document.getElementById('startDate').value;
+                const endDate = document.getElementById('endDate').value;
+                const dateType = document.getElementById('dateType').value;
+                
+                const selectedObjects = Array.from(document.getElementById('objects').selectedOptions)
+                    .map(opt => opt.value)
+                    .filter(val => val);
+                
+                const selectedWorkTypes = Array.from(document.getElementById('workTypes').selectedOptions)
+                    .map(opt => opt.value)
+                    .filter(val => val);
+
+                // Добавляем параметры
+                if (startDate) params.append('start_date', startDate);
+                if (endDate) params.append('end_date', endDate);
+                if (dateType) params.append('date_type', dateType);
+                if (selectedObjects.length > 0) params.append('objects', selectedObjects.join(','));
+                if (selectedWorkTypes.length > 0) params.append('work_types', selectedWorkTypes.join(','));
+
+                const response = await fetch(`${API_BASE}/api/report?${params}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    renderCharts(result.data);
+                } else {
+                    throw new Error(result.error);
+                }
+
+            } catch (error) {
+                console.error('Ошибка загрузки отчета:', error);
+                alert('Ошибка загрузки отчета: ' + error.message);
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        // Отрисовка графиков
+        function renderCharts(data) {
+            const periods = data.cumulative.map(item => item.period);
+            
+            // Накопительный итог
+            if (cumulativeChart) cumulativeChart.destroy();
+            cumulativeChart = new Chart(document.getElementById('cumulativeChart'), {
+                type: 'line',
+                data: {
+                    labels: periods,
+                    datasets: [
+                        {
+                            label: 'Накопленный план',
+                            data: data.cumulative.map(item => item.cumulative_plan),
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Накопленный факт',
+                            data: data.cumulative.map(item => item.cumulative_fact),
+                            borderColor: 'rgb(255, 99, 132)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Накопительный итог'
+                        }
+                    }
+                }
+            });
+
+            // Сгруппированный результат
+            if (regularChart) regularChart.destroy();
+            regularChart = new Chart(document.getElementById('regularChart'), {
+                type: 'bar',
+                data: {
+                    labels: periods,
+                    datasets: [
+                        {
+                            label: 'План',
+                            data: data.regular.map(item => item.plan),
+                            backgroundColor: 'rgba(75, 192, 192, 0.8)'
+                        },
+                        {
+                            label: 'Факт',
+                            data: data.regular.map(item => item.fact),
+                            backgroundColor: 'rgba(255, 99, 132, 0.8)'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Сгруппированный результат'
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

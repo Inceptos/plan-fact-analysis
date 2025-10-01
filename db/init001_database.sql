@@ -29,7 +29,7 @@ CREATE INDEX index_fact_plan_object_date ON fact_plan(id_object, work_date);
 COMMENT ON TABLE ref_object IS 'Справочник строительных объектов';
 COMMENT ON COLUMN ref_object.id IS 'Уникальный идентификатор объекта';
 COMMENT ON COLUMN ref_object.name IS 'Наименование объекта';
-COMMENT ON COLUMN ref_object.desctiption IS 'Подробное описание объекта';
+COMMENT ON COLUMN ref_object.description IS 'Подробное описание объекта';
 
 COMMENT ON TABLE ref_type_work IS 'Справочник видов работ';
 COMMENT ON COLUMN ref_type_work.id IS 'Уникальный идентификатор вида работ';
@@ -38,7 +38,7 @@ COMMENT ON COLUMN ref_type_work.name IS 'Название вида работы'
 COMMENT ON TABLE fact_plan IS 'Плановые и фактические показатели выполнения работ';
 COMMENT ON COLUMN fact_plan.id IS 'Уникальный идентификатор записи';
 COMMENT ON COLUMN fact_plan.id_object IS 'Ссылка на обьект строительства (внешний ключ)';
-COMMENT ON COLUMN fact_plan.id_type_work IS 'Ссылка на вид работ (внешний ключ)'
+COMMENT ON COLUMN fact_plan.id_type_work IS 'Ссылка на вид работ (внешний ключ)';
 COMMENT ON COLUMN fact_plan.work_date IS 'Срок выполнения работ';
 COMMENT ON COLUMN fact_plan.sum_plan IS 'Плановая стоимость выполнения работ';
 COMMENT ON COLUMN fact_plan.sum_fact IS 'Фактическая стоимость выполнения работ'

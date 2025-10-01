@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  postgres:
+    build: ./db
+    environment:
+      POSTGRES_DB: planfactDB      
+      POSTGRES_USER: myuser       
+      POSTGRES_PASSWORD: sohardpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - plan_fact_data:/var/lib/postgresql/data
+
+  api:
+    build: ./webapi
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: postgres
+      DB_USER: myuser
+      DB_PASSWORD: sohardpass
+      DB_NAME: planfactDB
+      DB_PORT: 5432
+      DB_SSL: false
+    depends_on:
+      - postgres
+
+volumes:
+  plan_fact_data:
